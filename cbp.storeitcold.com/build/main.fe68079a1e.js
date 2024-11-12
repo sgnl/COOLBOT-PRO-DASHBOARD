@@ -2092,7 +2092,19 @@ webpackJsonp([12], {
                 this.persistent = !0,
                 this.messagePromises = new Map,
                 this.pinHandlers = new Map,
-                this.currentPins = new Map
+                this.currentPins = new Map,
+                // SKF data
+                this.worldIds = [
+                    21,     // world 1...
+                    22,     // world 2...
+                    23,     // 3
+                    24,     // 4
+                    25,     // 5
+                    26,     // 6
+                    27,     // chiller left
+                    28      // chiller right
+                ],
+                this.hasCustomGui = false
             }
             return n.prototype.isDisconnected = function() {
                 return !this.ws || this.ws.readyState == WebSocket.CLOSED || this.ws.readyState == WebSocket.CLOSING
@@ -2290,14 +2302,86 @@ webpackJsonp([12], {
             n.prototype.updatePinValue = function(n, l, t) {
                 var e = this.pinName(n, l)
                   , u = this.currentPins[e];
-                if (l == 1) {
-                    console.log("FIN TEMP: ", t)
+
+                // SKF
+
+                // `l` maps to a code such as Environment Temp, Fin temp, etc.
+                // `n` maps to a world such as World 1, or Chiller Left/Right
+                if (l == 1 && this.worldIds.includes(n)) {
+                    var worldNameForFinTemp = this.profile.dashBoards[0].devices.filter((d) => {
+                        if (d.id == n) return true
+                        return false
+                    }).map((d) => {
+                        return d.name
+                    })[0]
+
+                    if (!this.hasCustomGui) {
+                        // initialize custom gui
+                        this.initCustomGui()
+                        this.hasCustomGui = true
+                    }
+
+                    // add data to custom gui
+                    this.updateCustomGui(worldNameForFinTemp, t)
+
                 }
                 this.currentPins[e] = t,
                 this.firePinHandlers(e, n, l, u, t),
                 this.firePinHandlers(this.pinName("*", l), n, l, u, t)
-            }
-            ,
+            },
+            n.prototype.updateCustomGui = function(worldName, temp) {
+                var needle = document.querySelector(`#${worldName.replace(/\s+/g, '-')}-value`);
+                needle.textContent = ` ${Math.round(temp)}`
+            },
+            n.prototype.initCustomGui = function(worldName, temp) {
+                const tempDiv = document.createElement("div");
+
+                // Apply inline CSS to style the div
+                tempDiv.style.fontSize = "20px"
+                tempDiv.style.position = "fixed";
+                tempDiv.style.top = "10px";
+                tempDiv.style.left = "10px";
+                tempDiv.style.backgroundColor = "white";
+                tempDiv.style.padding = "10px";
+                tempDiv.style.border = "1px solid black";
+                tempDiv.style.boxShadow = "2px 2px 10px rgba(0, 0, 0, 0.1)";
+
+                var heading = document.createElement("span");
+                heading.textContent = "Fin Temps"
+                heading.style.textDecoration = "underline"
+                tempDiv.appendChild(heading)
+
+                var br = document.createElement("br");
+                tempDiv.appendChild(br)
+
+                var children = this.profile.dashBoards[0].devices.map((d) => {
+                    // Create a span element to wrap the text part ("World 1 Fin Temp: ")
+                    const tempText = document.createElement("span");
+                    tempText.id = `${d.name.replace(/\s+/g, '-')}`;
+                    tempText.textContent = `${d.name}:`;  // Add the text inside the span
+
+                    // Add HTML attributes to the tempText (span)
+                    tempText.classList.add("tempLabel");   // Add a class to the span
+
+                    // Create a span element for the dynamic temperature value
+                    const tempValue = document.createElement("span");
+                    tempValue.style.fontWeight = "bold";    // Example inline style
+
+                    tempValue.id = `${tempText.id}-value`;  // Assign an ID to the span element
+                    tempValue.textContent = "Loading...";  // Default text until updated
+                    return [tempText, tempValue]
+                }).forEach((d) => {
+                    // Append the text and the span to the div
+                    tempDiv.appendChild(d[0])
+                    tempDiv.appendChild(d[1])
+                    var br = document.createElement("br");
+                    tempDiv.appendChild(br)
+
+                })
+
+                // Append the div to the body
+                document.body.appendChild(tempDiv);
+            },
             n.prototype.firePinHandlers = function(n, l, t, e, u) {
                 if (this.pinHandlers.has(n))
                     for (var i = 0, o = this.pinHandlers.get(n); i < o.length; i++) {
